@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NKC Express - Preparer mon envoi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<!--
+  Version bwip-js figee (4.11.4) plutot que "latest" (durcissement securite, cf. SECURITY_v3.md §3).
+  Integrity SRI a ajouter manuellement au deploiement : copier le hash officiel depuis
+  https://cdnjs.com/libraries/bwip-js (bouton "copy SRI") — un hash invente casserait le chargement.
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.11.4/bwip-js.min.js"
+          integrity="sha512-REPLACE_WITH_OFFICIAL_CDNJS_SRI_HASH"
+          crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bwip-js/4.11.4/bwip-js.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!--
+  Correspondance codes courts (CLAUDE_v15.md) <-> noms de zone reels affiches dans le formulaire.
+  Le champ dz du DataMatrix encode le NOM COMPLET (lisible), jamais le code court — decision actee :
+  les codes ne servent qu'a la documentation interne / au CRM, pas a l'affichage client.
+
+  Nouakchott : TVZ=Tevragh Zeina · KSR=Ksar · TYR=Teyarett · DNM=Dar Naim · TJN=Toujounine ·
+               ARF=Arafat · ELM=El Mina · SBK=Sebkha · RYD=Riyad · AUT=Autre / Hors Nouakchott
+  IDF (France) : 75=Paris · 77=Seine-et-Marne · 78=Yvelines · 91=Essonne · 92=Hauts-de-Seine ·
+               93=Seine-Saint-Denis · 94=Val-de-Marne · 95=Val-d'Oise · AUT=Autre / Hors IDF
+-->
+<style>
+:root{
+  --primary:#128C7E;
+  --primary-deep:#0e6f64;
+  --bg:#f0f2f5;
+  --surface:#ffffff;
+  --surface-alt:#e9edef;
+  --border:#d9dee1;
+  --text:#111b21;
+  --text-muted:#5e6b73;
+  --warn:#B85C00;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;font-size:15px;line-height:1.5}
+header{background:var(--primary);color:#fff;padding:20px;text-align:center}
+.brand{font-size:20px;font-weight:700}
+.brand span{display:block;opacity:.7;font-weight:400;font-size:13px;margin-top:3px}
+.tagline{font-size:13px;opacity:.9;margin-top:8px;max-width:340px;margin-left:auto;margin-right:auto}
+.wrap{max-width:480px;margin:0 auto;padding:16px}
+.intro{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;font-size:13.5px;color:var(--text-muted)}
+.intro b{color:var(--text)}
+.intro ol{margin:8px 0 0 18px}
+.intro li{margin-bottom:4px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:16px}
+.card-title{font-size:13px;font-weight:700;color:var(--primary);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--surface-alt);display:flex;align-items:center;gap:8px}
+.card-title .num{background:var(--primary);color:#fff;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.field{display:flex;flex-direction:column;gap:4px;margin-bottom:13px}
+.field:last-child{margin-bottom:0}
+.field label{font-size:12px;font-weight:600;color:var(--text-muted)}
+.field label .opt{font-weight:400;color:#9AA5A9}
+.field .hint{font-size:11px;color:#9AA5A9;margin-top:1px}
+.field input,.field select,.field textarea{padding:11px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:15px;color:var(--text);outline:none;transition:border-color .15s;width:100%;background:var(--surface);font-family:inherit}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--primary)}
+.field textarea{resize:vertical;min-height:64px}
+.field input.upper{text-transform:uppercase}
+.phone-row{display:flex;gap:8px}
+.phone-prefix{flex-shrink:0;display:flex;align-items:center;padding:0 12px;background:var(--surface-alt);border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-weight:600;color:var(--text-muted);font-family:'JetBrains Mono',monospace}
+.char-count{font-size:11px;color:#9AA5A9;text-align:right;margin-top:2px}
+.char-count.warn{color:var(--warn)}
+.btn-gen{width:100%;padding:14px;background:var(--primary);color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;transition:background .15s;margin-top:4px}
+.btn-gen:hover{background:var(--primary-deep)}
+.result{display:none;background:var(--surface);border:2px solid var(--primary);border-radius:12px;padding:20px;margin-bottom:16px;text-align:center}
+.result.show{display:block}
+.result-title{font-size:16px;font-weight:700;color:var(--primary);margin-bottom:4px}
+.result-sub{font-size:13px;color:var(--text-muted);margin-bottom:16px}
+#dm-container{display:flex;justify-content:center;padding:12px;background:var(--surface);border-radius:10px;margin-bottom:16px}
+#dm-container canvas{border:6px solid var(--surface)}
+.summary{text-align:left;background:var(--surface-alt);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:16px;font-size:13px}
+.s-row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);gap:10px}
+.s-row:last-child{border:none}
+.s-row .k{color:var(--text-muted);flex-shrink:0}
+.s-row .v{font-weight:600;text-align:right;word-break:break-word;font-family:'JetBrains Mono',monospace}
+.result-actions{display:flex;flex-direction:column;gap:8px}
+.btn-wa{display:flex;align-items:center;justify-content:center;gap:8px;padding:13px;background:#25D366;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;cursor:pointer;text-decoration:none}
+.btn-wa:hover{background:#1db954}
+.btn-sec{padding:11px;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;font-size:14px;font-weight:600;color:var(--text-muted);cursor:pointer}
+.btn-sec:hover{border-color:var(--primary);color:var(--primary)}
+.split-actions{display:flex;gap:8px}
+.split-actions .btn-sec{flex:1}
+.btn-modify{color:var(--text-muted);border-color:var(--border)}
+.btn-modify:hover{border-color:var(--text-muted)}
+.btn-danger{color:#C53030;border-color:#F1C2C2}
+.btn-danger:hover{border-color:#C53030;background:#FEF2F2}
+.err-msg{background:#FEE2E2;color:#991B1B;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
+.err-msg.show{display:block}
+.draft-badge{background:#FEF3C7;color:#92400E;font-size:11px;padding:4px 10px;border-radius:8px;margin-bottom:12px;text-align:center;display:none}
+.draft-badge.show{display:block}
+footer{text-align:center;padding:20px;font-size:12px;color:#9AA5A9}
+
+/* Sens (bidirectionnel) */
+.sens-toggle{display:flex;gap:8px;margin-bottom:4px}
+.sens-btn{flex:1;padding:12px 8px;border:1.5px solid var(--border);border-radius:10px;background:var(--surface);font-size:13px;font-weight:600;color:var(--text-muted);cursor:pointer;text-align:center;transition:.15s}
+.sens-btn.active{background:var(--primary);border-color:var(--primary);color:#fff}
+.info-banner{display:none;background:#E6F6F4;color:var(--primary-deep);border:1px solid #BEE8E2;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-top:10px;line-height:1.4}
+.info-banner.show{display:block}
+
+/* Colis - checkboxes multi-select */
+.check-group{display:flex;flex-direction:column;gap:8px}
+.check-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;cursor:pointer;transition:border-color .15s}
+.check-item:has(input:checked){border-color:var(--primary);background:#F0FAF8}
+.check-item input{width:18px;height:18px;accent-color:var(--primary);flex-shrink:0}
+.check-item span{font-size:14px;color:var(--text)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">NKC Express<span>Paris ⇄ Nouakchott</span></div>
+  <div class="tagline">Preparez votre envoi en 2 minutes. Recevez un DataMatrix a presenter au depot.</div>
+</header>
+
+<div class="wrap">
+  <div class="intro">
+    <b>Comment ca marche ?</b>
+    <ol>
+      <li>Remplissez ce formulaire (sauvegarde automatique)</li>
+      <li>Recevez votre DataMatrix</li>
+      <li>Envoyez-le sur WhatsApp ou montrez-le au depot</li>
+      <li>Gagnez du temps : tout est deja pret a l'arrivee</li>
+    </ol>
+  </div>
+
+  <div class="draft-badge" id="draft-badge">Brouillon restaure — vos informations precedentes ont ete rechargees.</div>
+  <div class="err-msg" id="err-msg"></div>
+
+  <div id="form-view">
+    <div class="card">
+      <div class="card-title"><span class="num">1</span> Sens de l'envoi</div>
+      <div class="sens-toggle">
+        <button type="button" class="sens-btn" id="sens-btn-PARIS_NKC" onclick="setSens('PARIS_NKC')">Paris → Nouakchott</button>
+        <button type="button" class="sens-btn" id="sens-btn-NKC_PARIS" onclick="setSens('NKC_PARIS')">Nouakchott → Paris</button>
+      </div>
+      <div class="info-banner" id="sens-banner">Ce sens n'est pas encore desservi commercialement. Vous pouvez tout de meme preparer votre envoi ; nous vous contacterons pour confirmer les modalites.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="num">2</span> <span id="card1-title">Expediteur (vous, en France)</span></div>
+      <div class="field">
+        <label>Nom et prenom</label>
+        <input id="exp-nom" class="upper" placeholder="DIALLO FATIMA" maxlength="60" oninput="saveDraft()">
+      </div>
+      <div class="field">
+        <label id="exp-phone-label">Telephone (France)</label>
+        <div class="phone-row">
+          <span class="phone-prefix" id="exp-prefix">+33</span>
+          <input id="exp-tel" type="tel" placeholder="6 12 34 56 78" inputmode="numeric" maxlength="14" oninput="saveDraft()">
+        </div>
+        <span class="hint" id="exp-hint">Sans le 0 initial. Ex : 6 12 34 56 78</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="num">3</span> <span id="card2-title">Destinataire (a Nouakchott)</span></div>
+      <div class="field">
+        <label>Nom et prenom</label>
+        <input id="dst-nom" class="upper" placeholder="AICHA MINT SALEM" maxlength="60" oninput="saveDraft()">
+      </div>
+      <div class="field">
+        <label id="dst-phone-label">Telephone (Mauritanie)</label>
+        <div class="phone-row">
+          <span class="phone-prefix" id="dst-prefix">+222</span>
+          <input id="dst-tel" type="tel" placeholder="XX XX XX XX" inputmode="numeric" maxlength="12" oninput="saveDraft()">
+        </div>
+      </div>
+      <div class="field">
+        <label id="zone-label">Zone de livraison a Nouakchott</label>
+        <select id="dst-zone" onchange="saveDraft()"></select>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="num">4</span> Votre colis</div>
+      <div class="field">
+        <label>Type de contenu <span class="opt">(plusieurs choix possibles)</span></label>
+        <div class="check-group">
+          <label class="check-item"><input type="checkbox" name="colType" value="vetements" onchange="saveDraft()"><span>Vetements / Linge</span></label>
+          <label class="check-item"><input type="checkbox" name="colType" value="telephone" onchange="saveDraft()"><span>Telephone</span></label>
+          <label class="check-item"><input type="checkbox" name="colType" value="pc" onchange="saveDraft()"><span>PC / Ordinateur</span></label>
+          <label class="check-item"><input type="checkbox" name="colType" value="tech" onchange="saveDraft()"><span>Tech (autre electronique)</span></label>
+          <label class="check-item"><input type="checkbox" name="colType" value="autre" onchange="saveDraft()"><span>Autre</span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label>Informations supplementaires <span class="opt">(facultatif)</span></label>
+        <textarea id="col-info" maxlength="160" placeholder="Ex : 1 ordinateur portable + vetements. Fragile." oninput="updCount();saveDraft()"></textarea>
+        <div class="char-count" id="char-count">0 / 160</div>
+      </div>
+    </div>
+
+    <button class="btn-gen" onclick="generate()">Generer mon DataMatrix</button>
+  </div>
+
+  <div class="result" id="result-view">
+    <div class="result-title">Votre DataMatrix est pret !</div>
+    <div class="result-sub">Envoyez-le sur WhatsApp ou montrez-le au depot</div>
+    <div id="dm-container"><canvas id="dm-canvas"></canvas></div>
+    <div class="summary" id="summary"></div>
+    <div class="result-actions">
+      <a class="btn-wa" id="wa-link" href="#" target="_blank" rel="noopener">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="#fff" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12c0 1.85.5 3.58 1.36 5.07L2 22l5.06-1.33A9.94 9.94 0 0 0 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2zm0 18c-1.6 0-3.13-.43-4.46-1.24l-.32-.19-3.1.82.83-3.02-.21-.31A7.94 7.94 0 0 1 4 12c0-4.41 3.59-8 8-8s8 3.59 8 8-3.59 8-8 8zm4.38-5.84c-.24-.12-1.43-.71-1.65-.79-.22-.08-.38-.12-.54.12-.16.24-.62.79-.76.95-.14.16-.28.18-.52.06-.24-.12-1.01-.37-1.92-1.19-.71-.63-1.19-1.42-1.33-1.66-.14-.24-.01-.37.11-.49.11-.11.24-.28.36-.42.12-.14.16-.24.24-.4.08-.16.04-.3-.02-.42-.06-.12-.54-1.3-.74-1.78-.19-.47-.39-.4-.54-.41-.14-.01-.3-.01-.46-.01-.16 0-.42.06-.64.3-.22.24-.84.82-.84 2s.86 2.32.98 2.48c.12.16 1.7 2.6 4.12 3.64.58.25 1.03.4 1.38.51.58.18 1.11.16 1.53.1.47-.07 1.43-.58 1.63-1.15.2-.57.2-1.05.14-1.15-.06-.1-.22-.16-.46-.28z"/></svg>
+        <span>Envoyer sur WhatsApp</span>
+      </a>
+      <button class="btn-sec" onclick="downloadDM()">Telecharger l'image</button>
+      <button class="btn-sec" onclick="copyCode()" id="copy-btn">Copier le code (texte)</button>
+      <div class="split-actions">
+        <button class="btn-sec btn-modify" onclick="backToForm()">Modifier</button>
+        <button class="btn-sec btn-danger" onclick="clearAndReset()">Effacer et recommencer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>NKC Express - Service de colis Paris - Nouakchott</footer>
+
+<script>
+var NKC_WHATSAPP='447748676955'; // Remplacer par le vrai numero WhatsApp NKC Express
+var DRAFT_KEY='nkc_form_draft';
+var lastCode='';
+var SENS='PARIS_NKC';
+
+// ── ZONES (noms complets lisibles - jamais les codes courts, cf. commentaire HTML en tete de fichier) ──
+var ZONES_NKC=[
+  {value:'TEVRAGH ZEINA',label:'Tevragh Zeina'},
+  {value:'KSAR',label:'Ksar'},
+  {value:'TEYARETT',label:'Teyarett'},
+  {value:'DAR NAIM',label:'Dar Naim'},
+  {value:'TOUJOUNINE',label:'Toujounine'},
+  {value:'ARAFAT',label:'Arafat'},
+  {value:'EL MINA',label:'El Mina'},
+  {value:'SEBKHA',label:'Sebkha'},
+  {value:'RIYAD',label:'Riyad'},
+  {value:'AUTRE',label:'Autre / Hors Nouakchott'},
+];
+var ZONES_IDF=[
+  {value:'PARIS',label:'Paris (75)'},
+  {value:'SEINE-ET-MARNE',label:'Seine-et-Marne (77)'},
+  {value:'YVELINES',label:'Yvelines (78)'},
+  {value:'ESSONNE',label:'Essonne (91)'},
+  {value:'HAUTS-DE-SEINE',label:'Hauts-de-Seine (92)'},
+  {value:'SEINE-SAINT-DENIS',label:'Seine-Saint-Denis (93)'},
+  {value:'VAL-DE-MARNE',label:'Val-de-Marne (94)'},
+  {value:"VAL-D'OISE",label:"Val-d'Oise (95)"},
+  {value:'AUTRE',label:'Autre / Hors IDF'},
+];
+
+// ── SENS (bidirectionnel — cf. functionnal_specs_v7.md §13) ──
+var SENS_CONFIG={
+  PARIS_NKC:{
+    senderCountry:'France', senderCode:'33',
+    recipientCountry:'Mauritanie', recipientCode:'222',
+    senderCardTitle:'Expediteur (vous, en France)',
+    recipientCardTitle:'Destinataire (a Nouakchott)',
+    senderPhoneLabel:'Telephone (France)',
+    recipientPhoneLabel:'Telephone (Mauritanie)',
+    senderPrefix:'+33', recipientPrefix:'+222',
+    senderHint:'Sans le 0 initial. Ex : 6 12 34 56 78',
+    zoneLabel:'Zone de livraison a Nouakchott',
+    zones:ZONES_NKC,
+    showBanner:false,
+  },
+  NKC_PARIS:{
+    senderCountry:'Mauritanie', senderCode:'222',
+    recipientCountry:'France', recipientCode:'33',
+    senderCardTitle:'Expediteur (vous, a Nouakchott)',
+    recipientCardTitle:'Destinataire (en France)',
+    senderPhoneLabel:'Telephone (Mauritanie)',
+    recipientPhoneLabel:'Telephone (France)',
+    senderPrefix:'+222', recipientPrefix:'+33',
+    senderHint:'Ex : XX XX XX XX',
+    zoneLabel:'Zone de livraison en France (IDF)',
+    zones:ZONES_IDF,
+    showBanner:true,
+  }
+};
+
+function setSens(s){
+  SENS=s;
+  applySensUI();
+  saveDraft();
+}
+
+function applySensUI(){
+  var cfg=SENS_CONFIG[SENS];
+  document.getElementById('sens-btn-PARIS_NKC').classList.toggle('active',SENS==='PARIS_NKC');
+  document.getElementById('sens-btn-NKC_PARIS').classList.toggle('active',SENS==='NKC_PARIS');
+  document.getElementById('sens-banner').classList.toggle('show',cfg.showBanner);
+
+  document.getElementById('card1-title').textContent=cfg.senderCardTitle;
+  document.getElementById('card2-title').textContent=cfg.recipientCardTitle;
+  document.getElementById('exp-phone-label').textContent=cfg.senderPhoneLabel;
+  document.getElementById('dst-phone-label').textContent=cfg.recipientPhoneLabel;
+  document.getElementById('exp-prefix').textContent=cfg.senderPrefix;
+  document.getElementById('dst-prefix').textContent=cfg.recipientPrefix;
+  document.getElementById('exp-hint').textContent=cfg.senderHint;
+  document.getElementById('zone-label').textContent=cfg.zoneLabel;
+
+  var zoneSel=document.getElementById('dst-zone');
+  var prevVal=zoneSel.value;
+  zoneSel.innerHTML='<option value="">-- Choisir la zone --</option>'+
+    cfg.zones.map(function(z){return '<option value="'+escapeHtml(z.value)+'">'+escapeHtml(z.label)+'</option>';}).join('');
+  // Ne conserve la valeur precedente que si elle existe dans la nouvelle liste
+  var stillValid=cfg.zones.some(function(z){return z.value===prevVal;});
+  zoneSel.value=stillValid?prevVal:'';
+}
+
+// ── DRAFT (persistence) ──
+function getColTypes(){
+  return Array.prototype.slice.call(document.querySelectorAll('input[name="colType"]:checked')).map(function(el){return el.value;});
+}
+function setColTypes(arr){
+  arr=arr||[];
+  document.querySelectorAll('input[name="colType"]').forEach(function(el){
+    el.checked=arr.indexOf(el.value)!==-1;
+  });
+}
+
+function saveDraft(){
+  var d={
+    sens:SENS,
+    expNom:document.getElementById('exp-nom').value,
+    expTel:document.getElementById('exp-tel').value,
+    dstNom:document.getElementById('dst-nom').value,
+    dstTel:document.getElementById('dst-tel').value,
+    dstZone:document.getElementById('dst-zone').value,
+    colTypes:getColTypes(),
+    colInfo:document.getElementById('col-info').value,
+  };
+  localStorage.setItem(DRAFT_KEY,JSON.stringify(d));
+}
+
+function loadDraft(){
+  try{
+    var raw=localStorage.getItem(DRAFT_KEY);
+    if(!raw)return false;
+    var d=JSON.parse(raw);
+    var hasData=d.expNom||d.expTel||d.dstNom||d.dstTel||d.dstZone||(d.colTypes&&d.colTypes.length)||d.colInfo;
+    if(!hasData)return false;
+    SENS=(d.sens==='NKC_PARIS')?'NKC_PARIS':'PARIS_NKC';
+    applySensUI();
+    document.getElementById('exp-nom').value=d.expNom||'';
+    document.getElementById('exp-tel').value=d.expTel||'';
+    document.getElementById('dst-nom').value=d.dstNom||'';
+    document.getElementById('dst-tel').value=d.dstTel||'';
+    document.getElementById('dst-zone').value=d.dstZone||'';
+    setColTypes(d.colTypes);
+    document.getElementById('col-info').value=d.colInfo||'';
+    updCount();
+    return true;
+  }catch(e){return false;}
+}
+
+function clearAndReset(){
+  if(!confirm('Effacer toutes les informations ?'))return;
+  localStorage.removeItem(DRAFT_KEY);
+  SENS='PARIS_NKC';
+  applySensUI();
+  ['exp-nom','exp-tel','dst-nom','dst-tel','col-info'].forEach(function(id){document.getElementById(id).value='';});
+  document.getElementById('dst-zone').value='';
+  setColTypes([]);
+  updCount();
+  document.getElementById('result-view').classList.remove('show');
+  document.getElementById('form-view').style.display='';
+}
+
+// ── UTILS ──
+function updCount(){
+  var t=document.getElementById('col-info').value;
+  var el=document.getElementById('char-count');
+  el.textContent=t.length+' / 160';
+  el.classList.toggle('warn',t.length>=150);
+}
+
+function showErr(msg){
+  var el=document.getElementById('err-msg');
+  el.textContent=msg;el.classList.add('show');
+  window.scrollTo({top:0,behavior:'smooth'});
+  setTimeout(function(){el.classList.remove('show');},4000);
+}
+
+function cleanDigits(s){return (s||'').replace(/\D/g,'');}
+
+// Anti-XSS : echappe toute valeur avant insertion dans innerHTML (SECURITY_v3.md §3)
+function escapeHtml(s){
+  return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+// ── GENERATE ──
+function generate(){
+  var cfg=SENS_CONFIG[SENS];
+  var expNom=document.getElementById('exp-nom').value.trim().toUpperCase();
+  var expTel=cleanDigits(document.getElementById('exp-tel').value);
+  var dstNom=document.getElementById('dst-nom').value.trim().toUpperCase();
+  var dstTel=cleanDigits(document.getElementById('dst-tel').value);
+  var dstZone=document.getElementById('dst-zone').value;
+  var colTypes=getColTypes();
+  var colInfo=document.getElementById('col-info').value.trim().slice(0,160);
+
+  if(!expNom){showErr('Veuillez indiquer votre nom et prenom.');return;}
+  if(!expTel){showErr('Veuillez indiquer votre telephone ('+cfg.senderCountry+').');return;}
+  if(cfg.senderCountry==='France'&&expTel.startsWith('0'))expTel=expTel.slice(1);
+  if(!dstNom){showErr('Veuillez indiquer le nom du destinataire.');return;}
+  if(!dstTel){showErr('Veuillez indiquer le telephone du destinataire ('+cfg.recipientCountry+').');return;}
+  if(cfg.recipientCountry==='France'&&dstTel.startsWith('0'))dstTel=dstTel.slice(1);
+  if(!dstZone){showErr('Veuillez choisir la zone de livraison.');return;}
+
+  // Encode as URL-encoded key=value (lisible + compact + scannable)
+  // sn/sp = sender name/phone, rn/rp = recipient name/phone (generique, independant du sens)
+  // sp/rp au format normalise cpn() attendu par le CRM : prefixe pays colle, sans "+" (ex: 33601020304)
+  var p=new URLSearchParams();
+  p.set('sn',expNom);
+  p.set('sp',cfg.senderCode+expTel);
+  p.set('rn',dstNom);
+  p.set('rp',cfg.recipientCode+dstTel);
+  p.set('dz',dstZone);
+  if(colInfo)p.set('ci',colInfo);
+  lastCode='NKC1:'+p.toString();
+
+  // Render DataMatrix via bwip-js
+  try{
+    bwipjs.toCanvas('dm-canvas',{
+      bcid:'datamatrix',
+      text:lastCode,
+      scale:4,
+      includetext:false,
+      backgroundcolor:'FFFFFF', // fond blanc opaque : evite un PNG transparent qui ressort noir au telechargement
+    });
+  }catch(e){
+    showErr('Erreur DataMatrix: '+e);return;
+  }
+
+  // Summary (valeurs echappees avant insertion HTML)
+  var typeLabels={vetements:'Vetements / Linge',telephone:'Telephone',pc:'PC / Ordinateur',tech:'Tech (autre electronique)',autre:'Autre'};
+  var typeText=colTypes.map(function(t){return typeLabels[t]||t;}).join(' + ');
+  document.getElementById('summary').innerHTML=
+    srow('Expediteur',expNom)+srow('Tel '+cfg.senderCountry,cfg.senderPrefix+' '+expTel)+
+    srow('Destinataire',dstNom)+srow('Tel '+cfg.recipientCountry,cfg.recipientPrefix+' '+dstTel)+
+    srow('Zone',dstZone)+(typeText?srow('Type',typeText):'')+
+    (colInfo?srow('Infos',colInfo):'');
+
+  // WhatsApp link
+  var waText='Bonjour NKC Express, voici mon code de preparation d envoi :\n\n'+lastCode+'\n\nExpediteur : '+expNom;
+  document.getElementById('wa-link').href='https://wa.me/'+NKC_WHATSAPP+'?text='+encodeURIComponent(waText);
+
+  document.getElementById('form-view').style.display='none';
+  document.getElementById('result-view').classList.add('show');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function srow(k,v){return '<div class="s-row"><span class="k">'+escapeHtml(k)+'</span><span class="v">'+escapeHtml(v)+'</span></div>';}
+
+function backToForm(){
+  document.getElementById('result-view').classList.remove('show');
+  document.getElementById('form-view').style.display='';
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function downloadDM(){
+  var canvas=document.getElementById('dm-canvas');
+  var a=document.createElement('a');
+  a.href=canvas.toDataURL('image/png');
+  a.download='nkc_datamatrix.png';a.click();
+}
+
+function copyCode(){
+  navigator.clipboard.writeText(lastCode).catch(function(){});
+  var b=document.getElementById('copy-btn');b.textContent='Code copie !';
+  setTimeout(function(){b.textContent='Copier le code (texte)';},2000);
+}
+
+// ── INIT ──
+['exp-nom','dst-nom'].forEach(function(id){
+  document.getElementById(id).addEventListener('input',function(e){
+    var p=e.target.selectionStart;
+    e.target.value=e.target.value.toUpperCase();
+    e.target.setSelectionRange(p,p);
+  });
+});
+
+applySensUI();
+var restored=loadDraft();
+if(restored){
+  document.getElementById('draft-badge').classList.add('show');
+  setTimeout(function(){document.getElementById('draft-badge').classList.remove('show');},4000);
+}
+</script>
+</body>
+</html>
